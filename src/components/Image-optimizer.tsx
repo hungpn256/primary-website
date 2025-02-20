@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -9,10 +10,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { axiosClient } from "@/services/axios-client";
 import { AnimatePresence, motion } from "framer-motion";
 import { Download, Loader2, Trash2, Upload } from "lucide-react";
 import { useState } from "react";
 import { useDropzone } from "react-dropzone";
+import { toast } from "sonner";
 
 interface OptimizedImage {
   id: string;
@@ -26,40 +29,58 @@ interface OptimizedImage {
 export default function ImageOptimizer() {
   const [optimizedImages, setOptimizedImages] = useState<OptimizedImage[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-
+  const accepted = [".png", ".jpg", ".jpeg", ".webp"];
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: {
-      "image/*": [".png", ".jpg", ".jpeg", ".webp"],
+      "image/*": accepted,
     },
-    onDrop: async (acceptedFiles) => {
-      setIsProcessing(true);
-      const optimizedResults = await Promise.all(
-        acceptedFiles.map(async (file) => {
-          const originalSize = file.size;
+    onDrop: async (acceptedFiles, rejectedFiles) => {
+      if (rejectedFiles.length > 0) {
+        toast.error("❌ Vui lòng chỉ sử dụng định dạng " + accepted.join(", "));
+        return;
+      }
+      if (acceptedFiles.length > 20) {
+        toast.error("❌ Tối đa chỉ được 20 ảnh 1 lúc!!");
+        return;
+      }
+      try {
+        setIsProcessing(true);
+        const optimizedResults = await Promise.all(
+          acceptedFiles.map(async (file) => {
+            const formData = new FormData();
+            formData.append("image", new Blob([file]), "image.jpg");
 
-          // Mô phỏng tối ưu hóa hình ảnh
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          const optimizedSize = Math.floor(originalSize * 0.7); // Giả lập giảm 30%
+            const response = await axiosClient.post(
+              "/optimized-image",
+              formData,
+              {
+                headers: { "Content-Type": "multipart/form-data" },
+                responseType: "blob",
+              }
+            );
 
-          // Tạo blob để mô phỏng hình ảnh đã tối ưu
-          const optimizedBlob = new Blob([await file.arrayBuffer()], {
-            type: file.type,
-          });
+            const blob = response.data;
+            const optimizedSize = blob.size;
+            const originalSize = file.size;
 
-          return {
-            id: Math.random().toString(36).substr(2, 9),
-            name: file.name,
-            originalSize,
-            optimizedSize,
-            optimizationPercentage:
-              ((originalSize - optimizedSize) / originalSize) * 100,
-            optimizedBlob,
-          };
-        })
-      );
-
-      setOptimizedImages(optimizedResults);
-      setIsProcessing(false);
+            return {
+              id: Math.random().toString(36).substr(2, 9),
+              name: file.name,
+              originalSize,
+              optimizedSize,
+              optimizationPercentage:
+                ((originalSize - optimizedSize) / originalSize) * 100,
+              optimizedBlob: blob,
+            } as OptimizedImage;
+          })
+        );
+        setOptimizedImages(optimizedResults);
+        toast.success("🎉 Ảnh tối ưu hóa thành công!");
+      } catch {
+        toast.error("❌ Lỗi khi tối ưu hóa ảnh!");
+      } finally {
+        setIsProcessing(false);
+      }
     },
   });
 

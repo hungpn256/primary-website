@@ -1,6 +1,7 @@
 import { SiteHeader } from "@/components/site-header";
 import { Inter } from "next/font/google";
 import type React from "react";
+import { Toaster } from "sonner";
 import { ThemeProvider } from "./context/theme/theme-provider";
 import "./globals.css";
 
@@ -25,6 +26,7 @@ export default function RootLayout({
             <SiteHeader />
             <div className="flex-1">{children}</div>
           </div>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
